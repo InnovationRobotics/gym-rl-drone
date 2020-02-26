@@ -51,7 +51,7 @@ The environment gets information from different mavros topics and uses the /mavr
 
 *** sometimes mavros has trouble switching to offboard mode, not sure what's the source of this bug but you can manually switch to offboard (e.g. using consule commander (run 'commander offboard' in px4 consule or simply using QGroundControl) ***
 
-Action space = thrust[0..1], roll[-1..1], pitch[-1..1], yaw[-1..1]
+Action space = ``` thrust[0..1], roll[-1..1], pitch[-1..1], yaw[-1..1] ```
 
-Observation space = [ linear position[x,y,z], linear velocity[x,y,z], linear acceleration[x,y,z], angular_position[roll,pitch,yaw], angular_velocity[roll,pitch,yaw] ]
+Observation space = ``` [ linear position[x,y,z], linear velocity[x,y,z], linear acceleration[x,y,z], angular_position[roll,pitch,yaw], angular_velocity[roll,pitch,yaw] ] ```
 
