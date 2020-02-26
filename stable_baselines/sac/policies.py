@@ -50,6 +50,9 @@ def mlp(input_ph, layers, activ_fn=tf.nn.relu, layer_norm=False):
         if layer_norm:
             output = tf.contrib.layers.layer_norm(output, center=True, scale=True)
         output = activ_fn(output)
+        # output_1 = tf.nn.sigmoid([output[0]])       ## ensure thrust has sigmoid activation [0..1]
+        # output_2 = tf.nn.tanh(output[1:4])          ## ensure angular_vel has tnah activation [-1..1]
+        # output = tf.concat([output_1,output_2], axis=0)
     return output
 
 

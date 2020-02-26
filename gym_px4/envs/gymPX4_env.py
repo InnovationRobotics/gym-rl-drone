@@ -46,16 +46,18 @@ def quaternion_to_euler(x, y, z, w):
         t0 = +2.0 * (w * x + y * z)
         t1 = +1.0 - 2.0 * (x * x + y * y)
         X = math.degrees(math.atan2(t0, t1))
+        X = math.atan2(t0, t1)
 
         t2 = +2.0 * (w * y - z * x)
         t2 = +1.0 if t2 > +1.0 else t2
         t2 = -1.0 if t2 < -1.0 else t2
         Y = math.degrees(math.asin(t2))
+        Y = math.asin(t2)
 
         t3 = +2.0 * (w * z + x * y)
         t4 = +1.0 - 2.0 * (y * y + z * z)
         Z = math.degrees(math.atan2(t3, t4))
-
+        Z = math.atan2(t3, t4)
         return X, Y, Z
 
 class gymPX4(gym.Env):
@@ -63,25 +65,40 @@ class gymPX4(gym.Env):
     def __init__(self):
 
         self.wins = 0
-        self.bounds_counter = 15
-        self.bounds = np.exp(-self.bounds_counter*0.1)
+        self.bounds_counter = 1
+        self.z_limit = 3
+        self.x_limit = 3
+        self.y_limit = 3
+        self.ang_vel_limit = 3
+        self.ang_pos_limit = 0.4
 
-        ### define gym spaces ###
-        self.min_action = 0.0
-        self.max_action = 1.0
+        ### define gym space ###
+        self.min_action = np.array([0, -1, -1, -1])
+        self.max_action = np.array([1, 1, 1, 1])
 
-        self.min_position = 0.1
-        self.max_position = 25
-        self.max_speed = 3
-        self.max_accel = 20
+        self.min_lin_pos = np.array([0.1, -20, -20])
+        self.max_lin_pos = np.array([40, 20, 20])
 
-        self.low_state = np.array([self.min_position, -self.max_speed, -self.max_accel])
-        self.high_state = np.array([self.max_position, self.max_speed, self.max_accel])
-        # self.low_state = np.array([self.min_position])
-        # self.high_state = np.array([self.max_position])
+        self.min_lin_vel = 10*np.array([-1, -1, -1])
+        self.max_lin_vel = 10*np.array([1, 1, 1])
 
-        self.action_space = spaces.Box(low = self.min_action, high=self.max_action, shape=(1,), dtype=np.float32)
+        self.min_lin_accl = 30*np.array([-1, -1, -1])
+        self.max_lin_accl = 30*np.array([1, 1, 1])
 
+        self.min_ang_pos = np.array([-1.57, -1.57, -1.57])
+        self.max_ang_pos = np.array([1.57, 1.57, 1.57])
+
+        self.min_ang_vel = 10*np.array([-1, -1, -1])
+        self.max_ang_vel = 10*np.array([1, 1, 1])
+        
+
+        # self.low_state = np.array([ self.min_lin_pos, self.min_lin_vel, self.min_lin_accl, self.min_ang_pos, self.min_ang_vel ]).flatten()
+        # self.high_state = np.array([self.max_lin_pos, self.max_lin_vel, self.max_lin_accl, self.max_ang_pos, self.max_ang_vel ]).flatten()
+
+        self.low_state = np.array([ self.min_lin_pos, self.min_lin_vel, self.min_lin_accl, self.min_ang_pos, self.min_ang_vel ]).flatten()
+        self.high_state = np.array([ self.max_lin_pos, self.max_lin_vel, self.max_lin_accl, self.max_ang_pos, self.max_ang_vel ]).flatten()
+        
+        self.action_space = spaces.Box(low = self.min_action, high=self.max_action, dtype=np.float32)
         self.observation_space = spaces.Box(low = self.low_state, high = self.high_state, dtype = np.float32)
 
         self.current_state = State()
@@ -97,11 +114,8 @@ class gymPX4(gym.Env):
         self.local_accel = Imu()
 
         # rospy.signal_shutdown('Resrating rospy')
-        # time.sleep(2)
         # subprocess.Popen(args='make px4_sitl gazebo', cwd='../Firmware', shell=True, start_new_session=True)
-        # time.sleep(10)
         # subprocess.Popen(args='roslaunch mavros px4.launch fcu_url:="udp://:14540@127.0.0.1:14557"', cwd='../Firmware', shell=True, start_new_session=True)
-        # time.sleep(10)
 
         ### define ROS messages ###
 
@@ -118,7 +132,7 @@ class gymPX4(gym.Env):
         self.state_sub = rospy.Subscriber("/mavros/state",State, self.state_cb,queue_size=10)
         self.imu_sub = rospy.Subscriber("/mavros/imu/data",Imu, self.imu_cb, queue_size=10)
         self.local_pos_sub = rospy.Subscriber("/mavros/local_position/pose", PoseStamped, self.lp_cb, queue_size=10)
-        self.local_vel_sub = rospy.Subscriber("/mavros/local_position/velocity_local", TwistStamped, self.lv_cb, queue_size=10)
+        self.local_vel_sub = rospy.Subscriber("/mavros/local_position/velocity_body", TwistStamped, self.lv_cb, queue_size=10)
         self.local_acc_sub = rospy.Subscriber("/mavros/imu/data", Imu, self.lacc_cb, queue_size=10)
         self.act_control_sub = rospy.Subscriber("/mavros/act_control/act_control_pub", ActuatorControl, self.act_cb,queue_size=10)
 
@@ -127,7 +141,6 @@ class gymPX4(gym.Env):
 
         self.ground_truth_sub = rospy.Subscriber("/gazebo/model_states", ModelStates, self.gt_cb, queue_size=10)
 
-
         ## ROS Publishers
         self.local_pos_pub = rospy.Publisher("/mavros/setpoint_position/local",PoseStamped,queue_size=10)
         self.mocap_pos_pub = rospy.Publisher("/mavros/mocap/pose",PoseStamped,queue_size=10)
@@ -135,12 +148,10 @@ class gymPX4(gym.Env):
         self.setpoint_raw_pub = rospy.Publisher("/mavros/setpoint_raw/attitude",AttitudeTarget,queue_size=10)
         self.thrust_pub = rospy.Publisher("/mavros/setpoint_attitude/thrust",Thrust,queue_size=10)
         
-
         ## initiate gym enviornment 
 
         self.init_env()
 
-    
         ## ROS Services
 
         rospy.wait_for_service('mavros/cmd/arming')
@@ -152,14 +163,11 @@ class gymPX4(gym.Env):
         rospy.wait_for_service('mavros/set_stream_rate')
         set_stream_rate=rospy.ServiceProxy("mavros/set_stream_rate",StreamRate)
 
-        set_stream_rate(StreamRateRequest.STREAM_POSITION, 50, 1)
-        set_stream_rate(StreamRateRequest.STREAM_ALL, 50, 1)
+        set_stream_rate(StreamRateRequest.STREAM_POSITION, 100, 1)
+        set_stream_rate(StreamRateRequest.STREAM_ALL, 100, 1)
 
         self.setpoint_msg = mavros.setpoint.PoseStamped(header=mavros.setpoint.Header(frame_id="att_pose",stamp=rospy.Time.now()),)
-
         self.offb_arm()
-
-  
 	
     def init_env(self):
 
@@ -170,31 +178,27 @@ class gymPX4(gym.Env):
 
     def reset(self):
 
-        # unpause()
-
         self.success_steps = 0
         self.steps=0
         reset_steps = 0
 
-        # self.desired = np.random.randint(2,10)
-        # self.initial = np.random.randint(2,10)
+        # self.desired = np.random.randint(2,10,3)
+        # self.initial = np.random.randint(2,10,3)
 
         ### sim limitations and objectives:
-        self.desired = 2
-        self.initial = 2
+        self.initial = np.array([0,0,20])
+        self.desired = np.array([0,0,20])
 
-        print('current bound: ',np.exp(-self.bounds_counter*0.1) , 'bound wins: ' , self.wins)
-
-        if self.wins > 10:
-            self.bounds_counter += 1
-            self.bounds = np.exp(-self.bounds_counter*0.1)
-            self.wins = 0
+        # if self.wins > 20:
+        #     self.bounds_counter += 1
+        #     self.z_limit= np.exp(-self.bounds_counter*0.1)
+        #     self.wins = 0
 
         print('Initial: ', self.initial, 'Desired: ', self.desired)
 
-        reset_pos=[0,0,self.initial,0]
+        reset_pos=[self.initial[0],self.initial[1],self.initial[2],0]
 
-        print('-- Resetting position')
+        print('-- Resetting position, current bound: ',self.z_limit , 'bound wins: ' , self.wins)
         
 		### wait for quad to arrive to desired position
         while True:
@@ -206,24 +210,37 @@ class gymPX4(gym.Env):
             self.setpoint_msg.pose.position.y = reset_pos[1]
             self.setpoint_msg.pose.position.z = reset_pos[2]
 
-            self.local_pos_pub.publish(self.setpoint_msg)
+            self.local_pos_pub.publish(self.setpoint_msg)   ### publish setpoint position for reset
 
-            x=self.local_position.pose.position.x
+            #### read sensor info from callbacks ####
+            x=self.local_position.pose.position.x   
             y=self.local_position.pose.position.y
             z=self.local_position.pose.position.z
-            lin_pos = [x,y,z]
+            lin_pos = np.array([x,y,z])
 
             vx=self.local_velocity.twist.linear.x
             vy=self.local_velocity.twist.linear.y
             vz=self.local_velocity.twist.linear.z
-            lin_vel = [vx,vy,vz]
+            lin_vel = np.array([vx,vy,vz])
 
             acx=self.local_accel.linear_acceleration.x
             acy=self.local_accel.linear_acceleration.y
             acz=self.local_accel.linear_acceleration.z
-            lin_accel = [acx,acy,acz]
+            lin_accel = np.array([acx,acy,acz])
+
+            ang_pos = np.zeros(3)
+            qx=self.local_position.pose.orientation.x
+            qy=self.local_position.pose.orientation.y
+            qz=self.local_position.pose.orientation.z
+            qw=self.local_position.pose.orientation.w
+            ang_pos = np.array(quaternion_to_euler(qx,qy,qz,qw))
+
+            roll=self.local_velocity.twist.angular.x
+            pitch=self.local_velocity.twist.angular.y
+            yaw=self.local_velocity.twist.angular.z
+            ang_vel = np.array([roll,pitch,yaw])
             
-            if np.abs(np.linalg.norm(lin_pos[2] - reset_pos[2])) < 0.2 and np.abs(np.linalg.norm(lin_vel)) < 0.2 :   ### wait for drone to reach desired position
+            if np.abs(np.linalg.norm(lin_pos - reset_pos[0:3])) < 0.5 and np.abs(np.linalg.norm(lin_vel)) < 0.1 :   ### wait for drone to reach desired position
                 time.sleep(0.2)
                 break
             
@@ -234,8 +251,9 @@ class gymPX4(gym.Env):
 
         print('-------- Position reset --------') 
 
-        ob = np.array([ self.desired - lin_pos[2] , lin_vel[2] , lin_accel[2] ]) 
-
+        # ob = np.array([ self.desired - lin_pos, lin_vel , lin_accel, ang_pos, ang_vel ]).flatten() 
+        # ob = np.array([ self.desired - lin_pos, lin_vel]).flatten() 
+        ob = np.array([lin_pos-self.desired, lin_vel, lin_accel, ang_pos, ang_vel]).flatten() 
         self.last_pos = lin_pos
 
         return ob  # reward, done, info can't be included
@@ -243,49 +261,44 @@ class gymPX4(gym.Env):
     def step(self, action):
 
         start_time=time.time()
-        rate = rospy.Rate(20)
+        rate = rospy.Rate(100)
 
-
-		### recieve updated position and velocity
-        qx=self.local_position.pose.orientation.x
-        qy=self.local_position.pose.orientation.y
-        qz=self.local_position.pose.orientation.z
-        qw=self.local_position.pose.orientation.w
-
-        roll, pitch, yaw = quaternion_to_euler(qx,qy,qz,qw)
-        ang_pos = [roll, pitch, yaw]
-
-        while True:
-            # st = time.time()
+        #### read sensor info from callbacks ####
+        while True:  ### make sure fresh position readings
             x=self.local_position.pose.position.x
             y=self.local_position.pose.position.y
             z=self.local_position.pose.position.z
-            lin_pos = [x,y,z]
-            if lin_pos[2] != self.last_pos[2]:
+            lin_pos = np.array([x,y,z])
+            if (lin_pos!= self.last_pos).any():
                 self.last_pos = lin_pos
                 break
     
         vx=self.local_velocity.twist.linear.x
         vy=self.local_velocity.twist.linear.y
         vz=self.local_velocity.twist.linear.z
-        lin_vel = [vx,vy,vz]
+        lin_vel = np.array([vx,vy,vz])
 
         acx=self.local_accel.linear_acceleration.x
         acy=self.local_accel.linear_acceleration.y
         acz=self.local_accel.linear_acceleration.z
-        lin_accel = [acx,acy,acz]
+        lin_accel = np.array([acx,acy,acz])
 
-        real_lin_pos = [self.ground_truth.pose[2].position.x , self.ground_truth.pose[2].position.y , self.ground_truth.pose[2].position.z]
-        real_ang_pos = [self.ground_truth.pose[2].orientation.x , self.ground_truth.pose[2].orientation.y , self.ground_truth.pose[2].orientation.z]
-        real_lin_vel = [self.ground_truth.twist[2].linear.x , self.ground_truth.twist[2].linear.y , self.ground_truth.twist[2].linear.z]
-        real_ang_vel = [self.ground_truth.twist[2].angular.x , self.ground_truth.twist[2].angular.y , self.ground_truth.twist[2].angular.z]
+        ang_pos = np.zeros(3)
+        qx=self.local_position.pose.orientation.x
+        qy=self.local_position.pose.orientation.y
+        qz=self.local_position.pose.orientation.z
+        qw=self.local_position.pose.orientation.w
+        ang_pos = np.array(quaternion_to_euler(qx,qy,qz,qw))
 
-        # gvx=self.global_velocity.twist.linear.x
-        # gvy=self.global_velocity.twist.linear.y
-        # gvz=self.global_velocity.twist.linear.z
-        # glob_lin_vel = [gvx,gvy,gvz]
+        roll=self.local_velocity.twist.angular.x
+        pitch=self.local_velocity.twist.angular.y
+        yaw=self.local_velocity.twist.angular.z
+        ang_vel = np.array([roll,pitch,yaw])
 
-        # rel_alt = self.relative_altitude
+        self.real_lin_pos = [self.ground_truth.pose[2].position.x , self.ground_truth.pose[2].position.y , self.ground_truth.pose[2].position.z]
+        self.real_ang_pos = [self.ground_truth.pose[2].orientation.x , self.ground_truth.pose[2].orientation.y , self.ground_truth.pose[2].orientation.z]
+        self.real_lin_vel = [self.ground_truth.twist[2].linear.x , self.ground_truth.twist[2].linear.y , self.ground_truth.twist[2].linear.z]
+        self.real_ang_vel = [self.ground_truth.twist[2].angular.x , self.ground_truth.twist[2].angular.y , self.ground_truth.twist[2].angular.z]
 
 		# ### send actuator control commands
         # self.act_controls.group_mix=0
@@ -296,122 +309,83 @@ class gymPX4(gym.Env):
         # self.acutator_control_pub.publish(self.act_controls)
 
         ### send set_point attitude rate commands
+        self.attitude_target.type_mask = AttitudeTarget.IGNORE_ATTITUDE
+        self.attitude_target.thrust = action[0]
+        quad_rate = Vector3()
+        quad_rate.x = action[1]
+        quad_rate.y = action[2]
+        quad_rate.z = action[3]
+        self.attitude_target.body_rate = quad_rate
 
-        self.attitude_target.type_mask = AttitudeTarget.IGNORE_ROLL_RATE | AttitudeTarget.IGNORE_PITCH_RATE | AttitudeTarget.IGNORE_YAW_RATE | AttitudeTarget.IGNORE_ATTITUDE
-        # attitude_target.type_mask = AttitudeTarget.IGNORE_ATTITUDE
-        self.attitude_target.thrust = action
-        # quad_rate = Vector3()
-        # quad_rate.x = 0
-        # quad_rate.y = 0
-        # quad_rate.z = 0
-
-        # attitude_target.body_rate = quad_rate
         self.setpoint_raw_pub.publish(self.attitude_target)
 
-        reward = -100*np.power( self.desired - real_lin_pos[2], 2) -60*np.power( real_lin_vel[2], 2)
+        # reward = -50*np.power( np.linalg.norm(self.desired - self.real_lin_pos), 2) -20*np.power( np.linalg.norm(self.real_lin_vel), 2) -50*np.power( np.linalg.norm(action[1:4]), 2)
+        
+        max_reward = np.sum(np.power( [self.x_limit,self.y_limit,self.z_limit] , 2) )
+        reward = max_reward - np.sum( np.power( lin_pos-self.desired,2 ) )
 
-        ob = np.array([ self.desired - lin_pos[2] , lin_vel[2], lin_accel[2] ])
+        # ob = np.array([ self.desired - lin_pos, lin_vel , lin_accel, ang_pos, ang_vel ]).flatten() 
+        # ob = np.array([ self.desired - lin_pos, lin_vel , lin_accel, ang_pos, ang_vel ]).flatten() 
+        # ob = np.array([self.desired - lin_pos, lin_vel]).flatten() 
+        ob = np.array([lin_pos-self.desired, lin_vel, lin_accel, ang_pos, ang_vel]).flatten() 
         
         done = False
         reset = 'No'
 
-        if  np.abs(real_lin_pos[0]) > 1.5 or np.abs(real_lin_pos[1]) > 1.5 or lin_pos[2] > 2+1 or lin_pos[2] < 2-1 :
+        done, reset = self.terminator()
+
+        if reset != 'No':
             done = True
-            reset = 'out of region'
-            reward = -10000
-            # self.wins-=1
+            reward = -5000
+            print('Episode Length: ', self.steps)
             print('----------------', reset, '----------------')
 
         if self.steps > 5000 :
             done = True
             reset = 'limit time steps'
-            # self.wins-=1
+            print('Episode Length: ', self.steps)
+            reward+=500
             print('----------------', reset ,'----------------')
 
-        # if  np.abs( self.desired - real_lin_pos[2] ) < self.bounds*0.5: # and np.abs(real_lin_vel[2]) < 0.2:
+        # if np.linalg.norm(self.desired - self.real_lin_pos) < self.z_limit/4 and np.linalg.norm(self.real_lin_vel) < self.z_limit/4:
         #     self.success_steps+=1
         #     if self.success_steps > 50:
         #         done = True
         #         reset = 'sim success'
         #         print('----------------', reset, '----------------')
-        #         # reward += 10000
+        #         reward += 10000
         #         self.wins+=1
                 
-        
         self.steps=self.steps+1
 
         self.last_pos = lin_pos
 
         step_prelen=time.time()-start_time
 
-        if step_prelen < 0.03:
-            time.sleep(0.03-step_prelen)
+        if step_prelen < 0.02:
+            time.sleep(0.02-step_prelen)
 
         step_len=time.time()-start_time
 
-        rate.sleep()
+        # rate.sleep()
 
-        print('state: ', ob , 'action: ', action , 'reward: ', reward, 'time: ', step_len)
+        # print('state: ', ob , 'action: ', action , 'reward: ', reward, 'time: ', step_len)
         # print(2-self.bounds, '/' , lin_pos[2], '/' , 2+self.bounds)
-
+        # print('lin pos: ', lin_pos)
+        # print('lin vel: ', lin_vel)
+        # print('ang pos: ', ang_pos)
+        # print('ang vel: ', ang_vel)
         info = {"state" : ob, "action": action, "reward": reward, "step": self.steps, "step length": step_len, "reset reason": reset}
-        # print('action: ', action, 'state: ', [real_lin_pos[2]-self.desired ,real_lin_vel[2] ] , 'reward: ', reward)  
+
         return ob, reward, done, info
 
     def offb_arm(self):
 
-        last_request = rospy.Time.now()
-
-        flag1 = False
-        flag2 = False
-
-        prev_imu_data = Imu()
-        prev_time = rospy.Time.now()
-        count = 0
-
-        # if self.current_state.mode == "OFFBOARD" and self.current_state.armed == True:
-        #     return
-
         print ('-- Enabling offboard mode and arming')
-
-        # while not rospy.is_shutdown():   ## quad initiation - set mode and arm
-            
-        #     if self.current_state.mode != "OFFBOARD" and (rospy.Time.now() - last_request > rospy.Duration(5.0)):
-        #         offb_set_mode_response = self.set_mode_client(self.offb_set_mode)
-        #         if offb_set_mode_response.mode_sent:
-        #             flag1 = True
-        #         last_request = rospy.Time.now()
-        #     else:
-        #         if self.current_state.armed == False:
-        #             arm_cmd_response = self.arming_client(self.arm_cmd)
-        #             if arm_cmd_response.success :
-        #                 flag2 = True
-        #             last_request = rospy.Time.now()
-
-        #     if flag1 and flag2:
-        #         print("-- Offboard enabled")
-        #         print("-- Vehicle armed")
-        #         break 
 
         rospy.wait_for_service('mavros/set_mode')
         self.set_mode_client(0,'OFFBOARD')
         self.arming_client(True)
-
-        # if self.current_state.mode != "OFFBOARD" or self.current_state.armed == False:
-        #     while True:   ### change to offboard mode
-        #         if self.current_state.mode != "OFFBOARD" and (rospy.Time.now() - last_request > rospy.Duration(5.0)):
-        #             offb_set_mode_response = self.set_mode_client(self.offb_set_mode)
-        #             if offb_set_mode_response.mode_sent:
-        #                 flag1 = True
-        #         if self.current_state.armed == False:
-        #             arm_cmd_response = self.arming_client(self.arm_cmd)
-        #             if arm_cmd_response.success :
-        #                 flag2 = True
-        #         if flag1 and flag2:
-        #             print("-- Offboard enabled")
-        #             print("-- Vehicle armed")
-        #             break
-
         rospy.loginfo('-- Ready to fly')
 
     def render(self):
@@ -446,21 +420,28 @@ class gymPX4(gym.Env):
 
     def gt_cb(self,data):
         self.ground_truth = data
-    
-    # def pause(self):
-    #     self.loop.run_until_complete(self.pause_asyn())
 
-    # def unpause(self):
-    #     self.loop.run_until_complete(self.unpause_asyn())
+    def terminator(self):
+
+        if np.abs(self.real_lin_pos[0]) > self.x_limit or np.abs(self.real_lin_pos[1]) > self.y_limit:
+            done = True
+            cause = 'pos-'+str(self.real_lin_pos)
+        elif (np.abs(self.real_ang_vel) > self.ang_vel_limit).any():
+            done = True
+            cause = 'ang_vel-'+str(self.real_ang_vel)
+        elif (np.abs(self.real_ang_pos) > self.ang_pos_limit).any():
+            done = True
+            cause = 'ang_pos-'+str(self.real_ang_pos)
+        elif self.real_lin_pos[2] > self.desired[2]+self.z_limit or self.real_lin_pos[2] < self.desired[2]-self.z_limit:
+            done = True
+            cause = 'z_limit-'+str(self.real_lin_pos[2])
+        else:
+            done = False
+            cause = 'No'
+        return done, cause
+
         
-    # async def pause_asyn(self):
-    #     await self.pub_world_control.publish(self.pause_msg)
-
-    # async def unpause_asyn(self):
-    #     await self.pub_world_control.publish(self.unpause_msg)
-
-    # async def step_asyn(self):
-    #     await self.pub_world_control.publish(self.step_msg)
+    
 
         
 
