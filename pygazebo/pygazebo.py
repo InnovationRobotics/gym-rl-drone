@@ -1,10 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-try:
-    import asyncio
-except ImportError:
-    import trollius as asyncio
+import asyncio
 
 import logging
 import math
@@ -248,7 +245,7 @@ class _Connection(object):
 
         # TODO jpieper: Either assert that this is numeric, or have a
         # separate DNS resolution stage.
-        future = asyncio.ensure_future(loop.sock_connect(self.socket, address))
+        future = asyncio.async(loop.sock_connect(self.socket, address))
 
         def callback_impl(future):
             try:
@@ -277,7 +274,7 @@ class _Connection(object):
 
     def start_accept(self, callback):
         loop = asyncio.get_event_loop()
-        future = asyncio.ensure_future(loop.sock_accept(self.socket))
+        future = asyncio.async(loop.sock_accept(self.socket))
         future.add_done_callback(
             lambda future: self.handle_accept(callback, future))
 
@@ -292,7 +289,7 @@ class _Connection(object):
         result = asyncio.Future()
 
         loop = asyncio.get_event_loop()
-        future = asyncio.ensure_future(loop.sock_recv(self.socket, 8))
+        future = asyncio.async(loop.sock_recv(self.socket, 8))
         future.add_done_callback(
             lambda future: self.handle_read_raw_header(future, result))
         return result
@@ -324,7 +321,7 @@ class _Connection(object):
                 return
 
             loop = asyncio.get_event_loop()
-            future = asyncio.ensure_future(
+            future = asyncio.async(
                 loop.sock_recv(self.socket,
                                min(total_size - len(starting_data),
                                    self.BUF_SIZE)))
@@ -384,7 +381,7 @@ class _Connection(object):
             next_send = data[to_send:]
 
             loop = asyncio.get_event_loop()
-            future = asyncio.ensure_future(loop.sock_sendall(self.socket, this_send))
+            future = asyncio.async(loop.sock_sendall(self.socket, this_send))
             future.add_done_callback(
                 lambda future: self.send_pieces(next_send, result))
         except Exception as e:

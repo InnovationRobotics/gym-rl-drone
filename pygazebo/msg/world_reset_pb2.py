@@ -13,15 +13,13 @@ from google.protobuf import descriptor_pb2
 _sym_db = _symbol_database.Default()
 
 
-from . import header_pb2
 
 
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='world_reset.proto',
   package='gazebo.msgs',
-  serialized_pb=_b('\n\x11world_reset.proto\x12\x0bgazebo.msgs\x1a\x0cheader.proto\"T\n\nWorldReset\x12\x11\n\x03\x61ll\x18\x01 \x01(\x08:\x04true\x12\x18\n\ttime_only\x18\x02 \x01(\x08:\x05\x66\x61lse\x12\x19\n\nmodel_only\x18\x03 \x01(\x08:\x05\x66\x61lse')
-  ,
-  dependencies=[header_pb2.DESCRIPTOR,])
+  serialized_pb=_b('\n\x11world_reset.proto\x12\x0bgazebo.msgs\"T\n\nWorldReset\x12\x11\n\x03\x61ll\x18\x01 \x01(\x08:\x04true\x12\x18\n\ttime_only\x18\x02 \x01(\x08:\x05\x66\x61lse\x12\x19\n\nmodel_only\x18\x03 \x01(\x08:\x05\x66\x61lse')
+)
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 
@@ -66,8 +64,8 @@ _WORLDRESET = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=48,
-  serialized_end=132,
+  serialized_start=34,
+  serialized_end=118,
 )
 
 DESCRIPTOR.message_types_by_name['WorldReset'] = _WORLDRESET
