@@ -1,0 +1,12 @@
+gym
+vpython
+pyquaternion
+matplotlib
+
+[all]
+mujoco_py>=1.50
+imageio
+
+[mujoco]
+mujoco_py>=1.50
+imageio

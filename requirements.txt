@@ -1,0 +1,4 @@
+pyquaternion>0.9
+gym
+vpython
+matplotlib

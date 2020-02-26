@@ -1,0 +1,10 @@
+Metadata-Version: 2.1
+Name: gym-reinmav
+Version: 0.0.1
+Summary: UNKNOWN
+Home-page: https://github.com/ethz-asl/reinmav-gym
+License: UNKNOWN
+Description: UNKNOWN
+Platform: UNKNOWN
+Provides-Extra: mujoco
+Provides-Extra: all
